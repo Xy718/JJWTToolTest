@@ -17,60 +17,76 @@ import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 
 
-
+/**
+ * JWT生成-校验工具
+ *<br>
+ * 今天熬夜了，难受
+ * @author Xy718
+ */
 @Component
 public class JwtHelper {
 
-    /**
-     * token 过期时间, 单位: 秒. 这个值表示 30 天
-     */
-    private static final long TOKEN_EXPIRED_TIME = 30 * 24 * 60 * 60;
-
+    //token 过期时间, 单位: 毫秒   7200000表示两小时
+    private static long TOKEN_EXPIRED_TIME = 7200000;
+    @Value("${jwt.exp_time}")
+    public void setTOKEN_EXPIRED_TIME(Long tOKEN_EXPIRED_TIME) {
+    	TOKEN_EXPIRED_TIME = tOKEN_EXPIRED_TIME;
+	}
     
     private static String JWT_SECRET;
     @Value("${jwt.secret}")
-    public static void setJWT_SECRET(String jWT_SECRET) {
+    public void setJWT_SECRET(String jWT_SECRET) {
 		JWT_SECRET = jWT_SECRET;
 	}
+    
     /**
      * 创建JWT
+     * @param username
+     * @return
      */
     public static String createJWT(String username) {
+    	//此处的map是带入到payload中的数据
         Map<String, Object> map = new HashMap<>();
         map.put("username", username);
-        
-        SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256; //指定签名的时候使用的签名算法，也就是header那部分，jjwt已经将这部分内容封装好了。
+        //签名的加密算法
+        SignatureAlgorithm signatureAlgorithm = SignatureAlgorithm.HS256; 
+        //当前时间
         Date now = new Date(System.currentTimeMillis());
-
+        //签名
         SecretKey secretKey = generalKey();
-        long nowMillis = System.currentTimeMillis();//生成JWT的时间
         //下面就是在为payload添加各种标准声明和私有声明了
         JwtBuilder builder = Jwts.builder()
-                .setClaims(map)//如果有私有声明，一定要先设置这个自己创建的私有的声明，这个是给builder的claim赋值，一旦写在标准的声明赋值之后，就是覆盖了那些标准的声明的
-                .setId((int)(Math.random()*10000)+"")//设置jti(JWT ID)：是JWT的唯一标识，根据业务需要，这个可以设置为一个不重复的值，主要用来作为一次性token,从而回避重放攻击。
+                .setClaims(map)//payload中的额外数据
+                .setId((int)(Math.random()*1000000)+"")//设置jti(JWT ID)：是JWT的唯一标识，根据业务需要，这个可以设置为一个不重复的值，主要用来作为一次性token,从而回避重放攻击。
                 .setIssuedAt(now)//iat: jwt的签发时间
                 .signWith(signatureAlgorithm, secretKey);//设置签名使用的签名算法和签名使用的秘钥
-        long expMillis = nowMillis + TOKEN_EXPIRED_TIME;
+        //过期时间
+        long expMillis = now.getTime() + TOKEN_EXPIRED_TIME;
         Date exp = new Date(expMillis);
-        builder.setExpiration(exp);     //设置过期时间
+        //设置过期时间
+        builder.setExpiration(exp);
         return builder.compact();
     }
 
 
 	/**
-     * 验证jwt
-     */
+	 * 验证JWT
+	 * @param token
+	 * @return
+	 */
     public static Claims verifyJwt(String token) {
         //签名秘钥，和生成的签名的秘钥一模一样
         SecretKey key = generalKey();
         Claims claims;
         try {
-            claims = Jwts.parser()  //得到DefaultJwtParser
-                    .setSigningKey(key)         //设置签名的秘钥
+            claims = Jwts.parser()//得到DefaultJwtParser
+                    .setSigningKey(key)//设置签名的秘钥
                     .parseClaimsJws(token).getBody();
         } catch (Exception e) {
+        	//校验失败
             claims = null;
-        }//设置需要解析的jwt
+        }
+        //抛出异常或null均为校验失败
         return claims;
 
     }
@@ -82,8 +98,7 @@ public class JwtHelper {
      * @return
      */
     public static SecretKey generalKey() {
-        String stringKey = JWT_SECRET;
-        byte[] encodedKey = Base64.decodeBase64(stringKey);
+    	byte[] encodedKey=JWT_SECRET.getBytes();
         SecretKey key = new SecretKeySpec(encodedKey, 0, encodedKey.length, "AES");
         return key;
     }
